@@ -743,7 +743,7 @@ document.addEventListener("DOMContentLoaded", () => {
   letters.sort((a,b)=> parsePLDate(a.date) - parsePLDate(b.date));
 
   // ===== ZDJĘCIA =====
-  const photoFiles = Array.from({length:10}, (_,i)=> `photos/${String(i+1).padStart(2,"0")}.jpeg`);
+  const photoFiles = Array.from({length:11}, (_,i)=> `photos/${String(i+1).padStart(2,"0")}.jpeg`);
 
   // ===== IKONY =====
   function buildIcons(){
