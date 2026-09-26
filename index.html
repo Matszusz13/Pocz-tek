@@ -271,6 +271,8 @@ body{
 
 #albumModal{ background:rgba(4,2,8,.82); }
 #albumModal .modalCard{
+  width:min(720px, 92vw);
+  max-width:720px;
   background:linear-gradient(160deg, rgba(20,10,30,.75), rgba(10,5,16,.85));
   border:1px solid var(--glassBorder);
   border-radius:20px;
@@ -414,6 +416,28 @@ body{
 #lightbox img{
   max-width:min(1200px,96vw); max-height:92vh;
   border-radius:14px; box-shadow:0 30px 90px rgba(0,0,0,.8);
+  user-select:none;
+}
+.lbNav{
+  position:fixed;
+  top:50%; transform:translateY(-50%);
+  width:52px; height:52px;
+  border-radius:50%;
+  border:1px solid rgba(255,255,255,.28);
+  background:rgba(10,5,18,.55);
+  color:#fff;
+  font-size:30px;
+  line-height:1;
+  display:grid; place-items:center;
+  cursor:pointer;
+  z-index:1000;
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+}
+.lbNav:active{ transform:translateY(-50%) scale(.92); }
+.lbPrev{ left:clamp(10px,3vw,28px); }
+.lbNext{ right:clamp(10px,3vw,28px); }
+@media (max-width:560px){
+  .lbNav{ width:44px; height:44px; font-size:24px; }
 }
 
 /* ===== ZEGAR ===== */
@@ -426,10 +450,17 @@ body{
 .timerLabel{
   font-family:"Cormorant Garamond",serif;
   font-style:italic;
+  font-weight:600;
   color:var(--gold);
-  text-shadow:0 10px 30px rgba(0,0,0,.6);
   text-align:center;
-  font-size:clamp(13px,2.8vw,15px);
+  font-size:clamp(13px,3.4vw,15px);
+  padding:6px 16px;
+  border-radius:999px;
+  background:rgba(10,5,18,.55);
+  border:1px solid var(--glassBorder);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  box-shadow:0 10px 30px rgba(0,0,0,.4);
+  max-width:92vw;
 }
 .timerGrid{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
 .tChip{
@@ -545,8 +576,10 @@ body{
   </div>
 
   <!-- LIGHTBOX -->
-  <div id="lightbox" aria-hidden="true" title="Kliknij, aby zamknąć">
+  <div id="lightbox" aria-hidden="true">
+    <button class="lbNav lbPrev" id="lbPrev" type="button" aria-label="Poprzednie zdjęcie">‹</button>
     <img id="lightboxImg" alt="Powiększone zdjęcie">
+    <button class="lbNav lbNext" id="lbNext" type="button" aria-label="Następne zdjęcie">›</button>
   </div>
 
   <audio id="music" preload="auto" loop>
@@ -582,6 +615,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const albumGrid = document.getElementById("albumGrid");
   const lightbox = document.getElementById("lightbox");
   const lightboxImg = document.getElementById("lightboxImg");
+  const lbPrev = document.getElementById("lbPrev");
+  const lbNext = document.getElementById("lbNext");
 
   const spotlight = document.getElementById("spotlight");
 
@@ -861,7 +896,7 @@ document.addEventListener("DOMContentLoaded", () => {
       img.addEventListener("load", ()=> div.classList.add("loaded"));
       img.addEventListener("error", ()=> div.classList.remove("loaded"));
 
-      const open = ()=> openLightbox(src, img.alt);
+      const open = ()=> openLightbox(src, img.alt, idx);
       div.addEventListener("click", open);
       div.addEventListener("keydown", (e)=>{
         if(e.key === "Enter" || e.key === " "){
@@ -889,9 +924,18 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ===== LIGHTBOX =====
-  function openLightbox(src, alt){
-    lightboxImg.src = src;
-    lightboxImg.alt = alt || "Zdjęcie";
+  let lbIndex = 0;
+
+  function showLightboxAt(idx){
+    if(idx < 0) idx = photoFiles.length - 1;
+    if(idx >= photoFiles.length) idx = 0;
+    lbIndex = idx;
+    lightboxImg.src = photoFiles[lbIndex];
+    lightboxImg.alt = `Zdjęcie ${lbIndex+1}`;
+  }
+
+  function openLightbox(src, alt, idx){
+    showLightboxAt(idx ?? photoFiles.indexOf(src));
     lightbox.classList.add("show");
     lightbox.setAttribute("aria-hidden","false");
   }
@@ -899,12 +943,40 @@ document.addEventListener("DOMContentLoaded", () => {
     lightbox.classList.remove("show");
     lightbox.setAttribute("aria-hidden","true");
   }
-  lightbox.addEventListener("click", closeLightbox);
+  function lbPrevImg(e){ e && e.stopPropagation(); showLightboxAt(lbIndex - 1); }
+  function lbNextImg(e){ e && e.stopPropagation(); showLightboxAt(lbIndex + 1); }
+
+  lbPrev.addEventListener("click", lbPrevImg);
+  lbNext.addEventListener("click", lbNextImg);
+
+  // klik w samo zdjęcie / tło zamyka; klik w strzałki nie
+  lightbox.addEventListener("click", (e)=>{
+    if(e.target === lightbox || e.target === lightboxImg) closeLightbox();
+  });
+
+  // przesuwanie palcem (swipe)
+  let touchStartX = null;
+  lightbox.addEventListener("touchstart", (e)=>{
+    touchStartX = e.changedTouches[0].clientX;
+  }, {passive:true});
+  lightbox.addEventListener("touchend", (e)=>{
+    if(touchStartX === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if(Math.abs(dx) > 40){
+      if(dx < 0) lbNextImg(); else lbPrevImg();
+    }
+    touchStartX = null;
+  }, {passive:true});
 
   addEventListener("keydown", (e)=>{
+    if(lightbox.classList.contains("show")){
+      if(e.key === "Escape") closeLightbox();
+      else if(e.key === "ArrowLeft") lbPrevImg();
+      else if(e.key === "ArrowRight") lbNextImg();
+      return;
+    }
     if(e.key !== "Escape") return;
-    if(lightbox.classList.contains("show")) closeLightbox();
-    else if(letterModal.classList.contains("show")) closeLetterModal();
+    if(letterModal.classList.contains("show")) closeLetterModal();
     else if(albumModal.classList.contains("show")) closeAlbumModal();
   });
 
